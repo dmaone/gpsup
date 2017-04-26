@@ -13,14 +13,17 @@ def login(config)
 end
 
 def new_label(browser, label_name)
+    puts "New label: #{label_name}"
     browser.goto "https://gpslib.ru/tracks/labels.php"
     browser.button(:class => "btn-primary").click
+    sleep(2)
     browser.text_field(:id => "tag").set label_name
     browser.checkbox(:id => "public").set
     browser.button(:type => "submit").click
 end
 
 def upload_track(browser, folder, track)
+    puts "Uploading:", track
     browser.goto "https://gpslib.ru/tracks/upload.php"
     browser.radio(:id => "type_auto").set
     browser.text_field(:id => "title").set track['title']
@@ -94,7 +97,12 @@ b = login(config)
 
 Dir.chdir(config["upload_from"])
 Dir.foreach(".") do |entry|
-    tracks = scan_folder(config, entry) if entry[0] != "."
-    upload_folder(b, config, entry, tracks) if !tracks.nil?
+    if entry[0] != "."
+        puts Time.now
+        puts "Processing #{entry}"
+        tracks = scan_folder(config, entry)
+        upload_folder(b, config, entry, tracks) if !tracks.nil?
+        puts Time.now
+    end
 end
 Dir.chdir(here)
