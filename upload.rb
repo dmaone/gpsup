@@ -5,7 +5,7 @@ require 'uri'
 require 'json'
 
 def login(config)
-    b = Watir::Browser.start "https://gpslib.ru/tracks/upload.php", :chrome
+    b = Watir::Browser.start "https://gpslib.ru/", :chrome
     b.text_field(:id =>  "flogin").set config["username"]
     b.text_field(:id => "fpassword").set config["password"]
     b.button(:type => "submit").click
@@ -20,12 +20,14 @@ def new_label(browser, label_name)
     browser.button(:type => "submit").click
 end
 
-def upload_track(browser, folder, country, title)
+def upload_track(browser, folder, track)
+    browser.goto "https://gpslib.ru/tracks/upload.php"
     browser.radio(:id => "type_auto").set
-    browser.text_field(:id => "title").set title
+    browser.text_field(:id => "title").set track['title']
     browser.text_field(:id => "city").set ""
-    browser.select_list(:name => "country").option(:value => country).select
+    browser.select_list(:name => "country").option(:value => track['country']).select
     browser.select_list(:name => "label").option(:text => folder).select
+    browser.file_field(:id => "file").set(track['name'])
     browser.button(:type => "submit").click
 end
 
@@ -53,33 +55,46 @@ def lookup_country(config, filename)
     return retval
 end
 
-def process_folder(browser, config, folder)
+def get_title(filename)
+    retval='Untitled'
+    File.open(filename, "r") do |f|
+        md = nil
+        while !f.eof? and md.nil?
+            md = /<time>(?<time>[^Z]+)Z/.match(f.readline)
+        end
+        retval = md['time'] if !md.nil?
+    end
+    return retval
+end
+
+def scan_folder(config, folder)
+    retval = Array.new
     Dir.foreach(folder) do |f|
         fullname = File.join(Dir.pwd, folder, f)
         next if !File.file?( fullname )
+        title = get_title(fullname)
         country = lookup_country(config, fullname)
-        puts fullname, country
-        exit
+        retval.push( { "name" => fullname, "country" => country, "title" => title } )
+    end
+    return retval
+end
+
+def upload_folder(browser, config, folder, tracks)
+    new_label(browser, folder)
+    tracks.each do |track|
+        upload_track(browser, folder, track)
     end
 end
 
 config = YAML.load_file('config.yml')
 
-
-folder = "foldertest"
-
-country = "CA"
-title = "test"
-
 here = Dir.pwd
-b = ''
+
+b = login(config)
 
 Dir.chdir(config["upload_from"])
 Dir.foreach(".") do |entry|
-    process_folder(b, config, entry) if entry[0] != "."
+    tracks = scan_folder(config, entry) if entry[0] != "."
+    upload_folder(b, config, entry, tracks) if !tracks.nil?
 end
 Dir.chdir(here)
-
-#b = login(config)
-#new_label(b, folder)
-#upload_track(b, folder, country, title)
