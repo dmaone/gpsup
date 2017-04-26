@@ -1,5 +1,8 @@
 require 'watir'
 require 'yaml'
+require 'net/https'
+require 'uri'
+require 'json'
 
 def login(config)
     b = Watir::Browser.start "https://gpslib.ru/tracks/upload.php", :chrome
@@ -26,26 +29,37 @@ def upload_track(browser, folder, country, title)
     browser.button(:type => "submit").click
 end
 
-def lookup_country(filename)
+def lookup_country(config, filename)
     # get coordinates from the middle of the track to avoid country borders
-    retval = 'US'
+    retval = nil
     l = File.size?(filename)
     File.open(filename, "r") do |f|
         f.seek(l/2, :SET)
         f.readline
         buf = f.readline
         md = /<trkpt\s+lat="(?<lat>[^"]+)"\s+lon="(?<lon>[^"]+)">/.match(buf)
-        puts md["lat"], md["lon"]
+        uri = URI.parse("https://maps.googleapis.com/maps/api/geocode/json?latlng=#{md['lat']},#{md['lon']}&key=#{config['geocode_api_key']}")
+        client = Net::HTTP.new(uri.host, uri.port)
+        client.use_ssl = true
+        # We won't pass PCI audit with this, that's for sure.
+        client.verify_mode = OpenSSL::SSL::VERIFY_NONE
+        resp = client.request(Net::HTTP::Get.new(uri.request_uri))
+        data = JSON.parse(resp.body)
+        data['results'][0]['address_components'].each do |component|
+            retval = component['short_name'] if component['types'][0] == "country"
+        end
     end
+    raise "Cannot determine track country!" if retval.nil?
     return retval
 end
 
-def process_folder(browser, folder)
+def process_folder(browser, config, folder)
     Dir.foreach(folder) do |f|
         fullname = File.join(Dir.pwd, folder, f)
         next if !File.file?( fullname )
-        country = lookup_country(fullname)
-        puts fullname
+        country = lookup_country(config, fullname)
+        puts fullname, country
+        exit
     end
 end
 
@@ -62,7 +76,7 @@ b = ''
 
 Dir.chdir(config["upload_from"])
 Dir.foreach(".") do |entry|
-    process_folder(b, entry) if entry[0] != "."
+    process_folder(b, config, entry) if entry[0] != "."
 end
 Dir.chdir(here)
 
