@@ -1,3 +1,4 @@
 username: USERNAME
 password: PASSWORD
 geocode_api_key: KEY
+upload_from: upload

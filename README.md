@@ -13,3 +13,4 @@ copy config.yml.example to config.yml - fill in your gpslib username, password a
 
 You can get the API key here:
 https://developers.google.com/maps/documentation/geocoding/
+

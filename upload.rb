@@ -26,10 +26,30 @@ def upload_track(browser, folder, country, title)
     browser.button(:type => "submit").click
 end
 
+def lookup_country(filename)
+    # get coordinates from the middle of the track to avoid country borders
+    retval = 'US'
+    l = File.size?(filename)
+    File.open(filename, "r") do |f|
+        f.seek(l/2, :SET)
+        f.readline
+        buf = f.readline
+        md = /<trkpt\s+lat="(?<lat>[^"]+)"\s+lon="(?<lon>[^"]+)">/.match(buf)
+        puts md["lat"], md["lon"]
+    end
+    return retval
+end
 
+def process_folder(browser, folder)
+    Dir.foreach(folder) do |f|
+        fullname = File.join(Dir.pwd, folder, f)
+        next if !File.file?( fullname )
+        country = lookup_country(fullname)
+        puts fullname
+    end
+end
 
 config = YAML.load_file('config.yml')
-b = login(config)
 
 
 folder = "foldertest"
@@ -37,6 +57,15 @@ folder = "foldertest"
 country = "CA"
 title = "test"
 
-#new_label(b, folder)
+here = Dir.pwd
+b = ''
 
-upload_track(b, folder, country, title)
+Dir.chdir(config["upload_from"])
+Dir.foreach(".") do |entry|
+    process_folder(b, entry) if entry[0] != "."
+end
+Dir.chdir(here)
+
+#b = login(config)
+#new_label(b, folder)
+#upload_track(b, folder, country, title)
